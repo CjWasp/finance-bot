@@ -3,6 +3,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 import database as db
 from keyboards import admin_keyboard, review_keyboard, main_menu_keyboard
@@ -17,6 +18,7 @@ def is_admin(user_id: int) -> bool:
 
 class BroadcastState(StatesGroup):
     waiting_for_message = State()
+    waiting_for_confirm = State()
 
 
 class RejectState(StatesGroup):
@@ -144,23 +146,63 @@ async def broadcast_start(message: Message, state: FSMContext):
 
 
 @router.message(BroadcastState.waiting_for_message)
-async def send_broadcast(message: Message, state: FSMContext, bot: Bot):
+async def broadcast_preview(message: Message, state: FSMContext):
     if not is_admin(message.from_user.id):
         return
     users = db.get_all_active_users()
+    count = len(users)
+    await state.update_data(broadcast_text=message.text)
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text=f"✅ Да, отправить {count} студентам", callback_data="broadcast:confirm")
+    builder.button(text="❌ Отмена", callback_data="broadcast:cancel")
+    builder.adjust(1)
+
+    await message.answer(
+        f"📢 <b>Предпросмотр сообщения:</b>\n\n"
+        f"{message.text}\n\n"
+        f"─────────────────\n"
+        f"Получателей: <b>{count}</b>",
+        parse_mode="HTML",
+        reply_markup=builder.as_markup()
+    )
+    await state.set_state(BroadcastState.waiting_for_confirm)
+
+
+@router.callback_query(F.data == "broadcast:confirm")
+async def broadcast_confirm(callback: CallbackQuery, state: FSMContext, bot: Bot):
+    if not is_admin(callback.from_user.id):
+        return
+    data = await state.get_data()
+    text = data.get("broadcast_text", "")
+    users = db.get_all_active_users()
     sent = 0
     failed = 0
-    await message.answer(f"⏳ Отправляю {len(users)} студентам...")
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.message.answer(f"⏳ Отправляю {len(users)} студентам...")
     for user in users:
         try:
-            await bot.send_message(user["user_id"],
-                f"📢 <b>Сообщение от куратора:</b>\n\n{message.text}",
-                parse_mode="HTML")
+            await bot.send_message(
+                user["user_id"],
+                f"📢 <b>Сообщение от куратора:</b>\n\n{text}",
+                parse_mode="HTML"
+            )
             sent += 1
         except Exception:
             failed += 1
     await state.clear()
-    await message.answer(f"✅ Готово! Отправлено: {sent}, ошибок: {failed}")
+    await callback.message.answer(f"✅ Готово! Отправлено: {sent}, ошибок: {failed}")
+    await callback.answer()
+
+
+@router.callback_query(F.data == "broadcast:cancel")
+async def broadcast_cancel(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        return
+    await state.clear()
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.message.answer("❌ Рассылка отменена.")
+    await callback.answer()
 
 
 @router.message(F.text == "🔙 Выйти из админки")
