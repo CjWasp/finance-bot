@@ -35,8 +35,7 @@ async def cmd_start(message: Message, state: FSMContext):
         return
 
     await message.answer(
-        f"👋 Добро пожаловать в <b>{COURSE_NAME}</b>!\n\n"
-        "Давайте познакомимся. Как вас зовут? (Имя и фамилия)",
+        "Давайте знакомиться. Как вас зовут?",
         reply_markup=ReplyKeyboardRemove(),
         parse_mode="HTML"
     )
