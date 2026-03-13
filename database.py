@@ -79,7 +79,19 @@ def get_user(user_id: int) -> Optional[dict]:
     return dict(row) if row else None
 
 
-def get_all_active_users() -> list:
+def get_all_users() -> list:
+    conn = get_connection()
+    rows = conn.execute("SELECT * FROM users ORDER BY registered_at DESC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def delete_user(user_id: int):
+    conn = get_connection()
+    conn.execute("DELETE FROM homework WHERE user_id=?", (user_id,))
+    conn.execute("DELETE FROM users WHERE user_id=?", (user_id,))
+    conn.commit()
+    conn.close()
     conn = get_connection()
     rows = conn.execute("SELECT * FROM users WHERE is_active=1 AND approved=1").fetchall()
     conn.close()
