@@ -16,7 +16,8 @@ def admin_keyboard():
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="📋 Проверить ДЗ"), KeyboardButton(text="📢 Рассылка")],
-            [KeyboardButton(text="📈 Статистика"), KeyboardButton(text="🔙 Выйти из админки")],
+            [KeyboardButton(text="👥 Студенты"), KeyboardButton(text="📈 Статистика")],
+            [KeyboardButton(text="🔙 Выйти из админки")],
         ],
         resize_keyboard=True
     )
