@@ -23,28 +23,18 @@ def get_current_module(lesson_id: int) -> int:
 
 
 def lesson_keyboard_before_watch(lesson: dict):
-    """Keyboard before student clicks watch — no finish button yet."""
+    """Only Start button before student begins."""
     builder = InlineKeyboardBuilder()
     builder.button(
-        text="▶️ Смотреть урок",
+        text="🚀 Начать",
         callback_data=f"watch_lesson:{lesson['id']}"
     )
-    if lesson["extra_video_url"]:
-        builder.button(
-            text=f"🔗 {lesson['extra_video_label']}",
-            url=lesson["extra_video_url"]
-        )
-    if lesson["hw_type"] == "text":
-        builder.button(
-            text="✏️ Выполнить задание",
-            callback_data=f"hw_start:{lesson['id']}"
-        )
     builder.adjust(1)
     return builder.as_markup()
 
 
 def lesson_keyboard_after_watch(lesson: dict):
-    """Keyboard after student clicked watch — finish button appears."""
+    """All buttons appear after Start is pressed."""
     builder = InlineKeyboardBuilder()
     builder.button(
         text="▶️ Смотреть урок",
