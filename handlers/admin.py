@@ -162,7 +162,8 @@ async def broadcast_preview(message: Message, state: FSMContext):
         f"📢 <b>Предпросмотр сообщения:</b>\n\n"
         f"{message.text}\n\n"
         f"─────────────────\n"
-        f"Получателей: <b>{count}</b>",
+        f"Получателей: <b>{count}</b>\n"
+        f"<i>💡 {'{имя}'} будет заменено на имя каждого студента</i>",
         parse_mode="HTML",
         reply_markup=builder.as_markup()
     )
@@ -182,9 +183,10 @@ async def broadcast_confirm(callback: CallbackQuery, state: FSMContext, bot: Bot
     await callback.message.answer(f"⏳ Отправляю {len(users)} студентам...")
     for user in users:
         try:
+            personalized = text.replace("{имя}", user["full_name"].split()[0])
             await bot.send_message(
                 user["user_id"],
-                f"📢 <b>Сообщение от куратора:</b>\n\n{text}",
+                f"📢 <b>Сообщение от куратора:</b>\n\n{personalized}",
                 parse_mode="HTML"
             )
             sent += 1
