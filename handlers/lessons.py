@@ -22,11 +22,48 @@ def get_current_module(lesson_id: int) -> int:
     return lesson["module"] if lesson else 1
 
 
-def lesson_action_keyboard(lesson: dict):
+def lesson_keyboard_before_watch(lesson: dict):
+    """Keyboard before student clicks watch — no finish button yet."""
     builder = InlineKeyboardBuilder()
-    builder.button(text="✅ Урок просмотрен", callback_data=f"mark_done:{lesson['id']}")
+    builder.button(
+        text="▶️ Смотреть урок",
+        callback_data=f"watch_lesson:{lesson['id']}"
+    )
+    if lesson["extra_video_url"]:
+        builder.button(
+            text=f"🔗 {lesson['extra_video_label']}",
+            url=lesson["extra_video_url"]
+        )
     if lesson["hw_type"] == "text":
-        builder.button(text="✏️ Сдать домашнее задание", callback_data=f"hw_start:{lesson['id']}")
+        builder.button(
+            text="✏️ Выполнить задание",
+            callback_data=f"hw_start:{lesson['id']}"
+        )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def lesson_keyboard_after_watch(lesson: dict):
+    """Keyboard after student clicked watch — finish button appears."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="▶️ Смотреть урок",
+        callback_data=f"watch_lesson:{lesson['id']}"
+    )
+    if lesson["extra_video_url"]:
+        builder.button(
+            text=f"🔗 {lesson['extra_video_label']}",
+            url=lesson["extra_video_url"]
+        )
+    if lesson["hw_type"] == "text":
+        builder.button(
+            text="✏️ Выполнить задание",
+            callback_data=f"hw_start:{lesson['id']}"
+        )
+    builder.button(
+        text="✅ Завершить урок",
+        callback_data=f"mark_done:{lesson['id']}"
+    )
     builder.adjust(1)
     return builder.as_markup()
 
@@ -34,14 +71,7 @@ def lesson_action_keyboard(lesson: dict):
 def lessons_list_keyboard(current_lesson_id: int):
     builder = InlineKeyboardBuilder()
     current_module_num = get_current_module(current_lesson_id)
-
-    # Show only lessons of current module
     module_lessons = get_module_lessons(current_module_num)
-
-    builder.button(
-        text=f"── {MODULES[current_module_num]['title']} ──",
-        callback_data="noop"
-    )
 
     for lesson in module_lessons:
         lid = lesson["id"]
@@ -60,24 +90,14 @@ def lessons_list_keyboard(current_lesson_id: int):
 
 
 async def send_lesson_message(target, lesson: dict, bot: Bot = None):
-    # Build caption text
-    video_line = f"🎬 <a href='{lesson['video_url']}'>Смотреть урок</a>"
-    if lesson["extra_video_url"]:
-        video_line += f"\n🎬 <a href='{lesson['extra_video_url']}'>{lesson['extra_video_label']}</a>"
-
     hw_block = ""
     if lesson["hw_type"] == "text" and lesson["hw_text"]:
         hw_block = f"\n\n{lesson['hw_text']}"
     elif lesson["hw_type"] == "info" and lesson["hw_text"]:
         hw_block = f"\n\n{lesson['hw_text']}"
 
-    caption = (
-        f"{video_line}\n\n"
-        f"{lesson['text']}"
-        f"{hw_block}"
-    )
-
-    keyboard = lesson_action_keyboard(lesson)
+    caption = f"{lesson['text']}{hw_block}"
+    keyboard = lesson_keyboard_before_watch(lesson)
 
     if lesson.get("cover"):
         await target.answer_photo(
@@ -149,6 +169,29 @@ async def open_lesson(callback: CallbackQuery, bot: Bot):
     await callback.answer()
 
 
+@router.callback_query(F.data.startswith("watch_lesson:"))
+async def watch_lesson(callback: CallbackQuery, bot: Bot):
+    lesson_id = int(callback.data.split(":")[1])
+    lesson = get_lesson(lesson_id)
+    if not lesson:
+        await callback.answer()
+        return
+
+    # Open the video URL in Telegram
+    await bot.answer_callback_query(
+        callback.id,
+        url=lesson["video_url"]
+    )
+
+    # Update keyboard to show finish button
+    try:
+        await callback.message.edit_reply_markup(
+            reply_markup=lesson_keyboard_after_watch(lesson)
+        )
+    except Exception:
+        pass
+
+
 @router.callback_query(F.data.startswith("mark_done:"))
 async def mark_lesson_done(callback: CallbackQuery, bot: Bot):
     lesson_id = int(callback.data.split(":")[1])
@@ -165,7 +208,6 @@ async def mark_lesson_done(callback: CallbackQuery, bot: Bot):
 
     await callback.message.edit_reply_markup(reply_markup=None)
 
-    # Show apps list if present
     if lesson["apps_text"]:
         await callback.message.answer(
             lesson["apps_text"],
@@ -173,7 +215,6 @@ async def mark_lesson_done(callback: CallbackQuery, bot: Bot):
             disable_web_page_preview=True
         )
 
-    # Only advance if this is their current lesson
     if lesson_id == user["current_lesson"]:
         if lesson_id >= TOTAL_LESSONS:
             db.complete_course(callback.from_user.id)
