@@ -207,7 +207,85 @@ async def broadcast_cancel(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@router.message(F.text == "🔙 Выйти из админки")
+@router.message(F.text == "👥 Студенты")
+async def show_students(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+    users = db.get_all_users()
+    if not users:
+        await message.answer("Студентов пока нет.")
+        return
+
+    await message.answer(f"👥 <b>Все студенты ({len(users)}):</b>", parse_mode="HTML")
+
+    for user in users:
+        status = "⏳ ожидает" if not user["approved"] else ("🏁 завершил" if user["course_done"] else f"📖 урок {user['current_lesson']}")
+        username = f"@{user['username']}" if user["username"] else "—"
+        text = (
+            f"👤 <b>{user['full_name']}</b>\n"
+            f"🔗 {username}\n"
+            f"📊 {status}\n"
+            f"🆔 {user['user_id']}"
+        )
+        builder = InlineKeyboardBuilder()
+        builder.button(text="🗑 Удалить", callback_data=f"delete_user:{user['user_id']}")
+        await message.answer(text, parse_mode="HTML", reply_markup=builder.as_markup())
+
+
+@router.callback_query(F.data.startswith("delete_user:"))
+async def delete_user_ask(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        return
+    user_id = int(callback.data.split(":")[1])
+    user = db.get_user(user_id)
+    if not user:
+        await callback.answer("Пользователь не найден.", show_alert=True)
+        return
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="✅ Да, удалить", callback_data=f"delete_user_confirm:{user_id}")
+    builder.button(text="❌ Отмена", callback_data="delete_user_cancel")
+    builder.adjust(2)
+
+    await callback.message.edit_text(
+        f"🗑 Удалить студента <b>{user['full_name']}</b>?\n\n"
+        f"Удалятся все его данные и домашние задания.",
+        parse_mode="HTML",
+        reply_markup=builder.as_markup()
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("delete_user_confirm:"))
+async def delete_user_confirm(callback: CallbackQuery, bot: Bot):
+    if not is_admin(callback.from_user.id):
+        return
+    user_id = int(callback.data.split(":")[1])
+    user = db.get_user(user_id)
+    if not user:
+        await callback.answer("Пользователь не найден.", show_alert=True)
+        return
+    name = user["full_name"]
+    db.delete_user(user_id)
+    try:
+        await bot.send_message(
+            user_id,
+            "❌ Ваш доступ к курсу был отозван.\n"
+            "По вопросам обращайтесь к куратору: @sergofinance"
+        )
+    except Exception:
+        pass
+    await callback.message.edit_text(f"🗑 Студент <b>{name}</b> удалён.", parse_mode="HTML")
+    await callback.answer()
+
+
+@router.callback_query(F.data == "delete_user_cancel")
+async def delete_user_cancel(callback: CallbackQuery):
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.answer("Отменено.")
+
+
+
 async def exit_admin(message: Message):
     if not is_admin(message.from_user.id):
         return
