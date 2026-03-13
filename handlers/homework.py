@@ -1,7 +1,7 @@
 from aiogram import Router, F, Bot
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
+from aiogram.types import Message, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 import database as db
@@ -20,12 +20,6 @@ class HomeworkStates(StatesGroup):
     waiting_for_answer = State()
 
 
-def cancel_keyboard():
-    builder = InlineKeyboardBuilder()
-    builder.button(text="⏭ Пропустить задание", callback_data="skip_hw")
-    return builder.as_markup()
-
-
 @router.message(F.text == "✏️ Сдать ДЗ")
 async def hw_from_menu(message: Message, state: FSMContext):
     user = db.get_user(message.from_user.id)
@@ -37,7 +31,7 @@ async def hw_from_menu(message: Message, state: FSMContext):
     if not lesson or lesson["hw_type"] != "text":
         await message.answer(
             "В текущем уроке нет задания для отправки.\n"
-            "Нажмите «📚 Мои уроки» чтобы продолжить.",
+            "Нажмите «📚 Уроки» чтобы продолжить.",
             reply_markup=main_menu_keyboard()
         )
         return
@@ -45,9 +39,8 @@ async def hw_from_menu(message: Message, state: FSMContext):
     await state.update_data(lesson_id=lesson["id"])
     await message.answer(lesson["hw_text"], parse_mode="HTML")
     await message.answer(
-        "Напишите ваш ответ 👇\n\n<i>Или нажмите кнопку ниже, чтобы пропустить.</i>",
-        parse_mode="HTML",
-        reply_markup=cancel_keyboard()
+        "<i>Напишите ваш ответ и отправьте как обычное сообщение</i>",
+        parse_mode="HTML"
     )
     await state.set_state(HomeworkStates.waiting_for_answer)
 
@@ -63,22 +56,10 @@ async def hw_from_lesson(callback: CallbackQuery, state: FSMContext):
     await state.update_data(lesson_id=lesson_id)
     await callback.message.answer(lesson["hw_text"], parse_mode="HTML")
     await callback.message.answer(
-        "Напишите ваш ответ 👇\n\n<i>Или нажмите кнопку ниже, чтобы пропустить.</i>",
-        parse_mode="HTML",
-        reply_markup=cancel_keyboard()
+        "<i>Напишите ваш ответ и отправьте как обычное сообщение</i>",
+        parse_mode="HTML"
     )
     await state.set_state(HomeworkStates.waiting_for_answer)
-    await callback.answer()
-
-
-@router.callback_query(F.data == "skip_hw")
-async def skip_homework(callback: CallbackQuery, state: FSMContext):
-    await state.clear()
-    await callback.message.answer(
-        "⏭ Задание пропущено.\n"
-        "Нажмите «📚 Мои уроки» чтобы продолжить.",
-        reply_markup=main_menu_keyboard()
-    )
     await callback.answer()
 
 
@@ -110,7 +91,7 @@ async def receive_homework(message: Message, state: FSMContext, bot: Bot):
     await state.clear()
     await message.answer(
         "✅ <b>Задание отправлено!</b>\n\n"
-        "Нажмите «📚 Мои уроки» чтобы продолжить.",
+        "Нажмите «📚 Уроки» чтобы продолжить.",
         reply_markup=main_menu_keyboard(),
         parse_mode="HTML"
     )
