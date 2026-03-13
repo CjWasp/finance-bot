@@ -48,7 +48,7 @@ def lesson_keyboard_after_watch(lesson: dict):
     builder = InlineKeyboardBuilder()
     builder.button(
         text="▶️ Смотреть урок",
-        callback_data=f"watch_lesson:{lesson['id']}"
+        url=lesson["video_url"]
     )
     if lesson["extra_video_url"]:
         builder.button(
@@ -177,19 +177,14 @@ async def watch_lesson(callback: CallbackQuery, bot: Bot):
         await callback.answer()
         return
 
-    # Open the video URL in Telegram
-    await bot.answer_callback_query(
-        callback.id,
-        url=lesson["video_url"]
-    )
-
-    # Update keyboard to show finish button
+    # Update keyboard to show finish button and make watch button a real url
     try:
         await callback.message.edit_reply_markup(
             reply_markup=lesson_keyboard_after_watch(lesson)
         )
     except Exception:
         pass
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("mark_done:"))
